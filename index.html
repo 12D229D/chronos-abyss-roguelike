@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chronos Abyss - Roguelike Dungeon Crawler</title>
+    <meta name="description" content="Juego roguelike procedural de exploración por turnos con mecánica de rebobinado temporal en HTML5 Canvas y JavaScript ES6+.">
+    <meta name="theme-color" content="#0d0918">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Game Stylesheet -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Top Semantic Header -->
+    <header class="game-header">
+        <div class="header-brand">
+            <span class="brand-icon">⏳</span>
+            <h1 class="game-title" id="mainTitle">Chronos Abyss</h1>
+        </div>
+
+        <div class="header-stats">
+            <div class="stat-pill" title="Profundidad del Abismo">
+                <span class="label">Piso</span>
+                <span class="val" id="hudDepth">1</span>
+            </div>
+            <div class="stat-pill" title="Turnos Transcurridos">
+                <span class="label">Turnos</span>
+                <span class="val" id="hudTurns">0</span>
+            </div>
+            <div class="stat-pill" title="Puntuación Total">
+                <span class="label">Score</span>
+                <span class="val" id="hudScore">0</span>
+            </div>
+        </div>
+
+        <div class="header-actions">
+            <button class="icon-btn" id="btnToggleSound" title="Alternar Sonido (M)" aria-label="Alternar Sonido">🔊</button>
+            <button class="icon-btn" id="btnOpenHelp" title="Instrucciones y Ayuda (H)" aria-label="Ayuda">❓</button>
+            <button class="icon-btn" id="btnRestartGame" title="Reiniciar Partida" aria-label="Reiniciar">🔄</button>
+        </div>
+    </header>
+
+    <!-- Main Game Section -->
+    <main class="game-main">
+        <!-- Viewport & Canvas Area -->
+        <section class="viewport-container" aria-label="Área de Juego Canvas">
+            <div class="canvas-wrapper">
+                <canvas id="gameCanvas" width="800" height="600" tabindex="0" aria-label="Tablero de exploración de Chronos Abyss"></canvas>
+                <div class="rewind-distortion" id="rewindFxOverlay"></div>
+            </div>
+
+            <!-- Mobile Touch Controls -->
+            <div class="mobile-controls" id="mobileControlsArea">
+                <div class="dpad">
+                    <button class="dpad-btn up" id="btnDpadUp" aria-label="Mover Arriba">▲</button>
+                    <button class="dpad-btn left" id="btnDpadLeft" aria-label="Mover Izquierda">◀</button>
+                    <button class="dpad-btn wait" id="btnDpadWait" aria-label="Esperar Turno">PASAR</button>
+                    <button class="dpad-btn right" id="btnDpadRight" aria-label="Mover Derecha">▶</button>
+                    <button class="dpad-btn down" id="btnDpadDown" aria-label="Mover Abajo">▼</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sidebar HUD -->
+        <aside class="hud-sidebar" aria-label="Panel de Estado del Crononavegante">
+            <!-- Player Health & Energy -->
+            <div class="hud-card">
+                <div class="hud-card-title">
+                    <span>Crononavegante</span>
+                    <span id="hudLevelBadge">Nv. 1</span>
+                </div>
+                
+                <div class="bar-group">
+                    <div class="bar-container">
+                        <div class="bar-meta">
+                            <span style="color: #ef4444;">❤️ Salud (HP)</span>
+                            <span id="hpText">60 / 60</span>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill hp" id="hpBarFill" style="width: 100%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="bar-container">
+                        <div class="bar-meta">
+                            <span style="color: var(--primary-cyan);">⚡ Energía Crono</span>
+                            <span id="energyText">3 / 3</span>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill energy" id="energyBarFill" style="width: 100%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="bar-meta" style="margin-top: 0.25rem; font-size: 0.75rem; color: var(--text-muted);">
+                        <span>Ataque: <strong id="hudStatAtk" style="color: var(--text-main);">10</strong></span>
+                        <span>Defensa: <strong id="hudStatDef" style="color: var(--text-main);">2</strong></span>
+                        <span>EXP: <strong id="hudStatExp" style="color: var(--accent-gold);">0/50</strong></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Signature Temporal Rewind Panel -->
+            <div class="hud-card rewind-panel">
+                <div class="hud-card-title">
+                    <span>Distorsión Temporal</span>
+                    <span style="font-size: 0.7rem; color: var(--text-muted);">[Tecla R]</span>
+                </div>
+                <button class="btn-rewind" id="btnTriggerRewind" title="Rebobinar hasta el turno anterior (Cuesta 1 Energía Crono)">
+                    <span>⏪ Rebobinar Tiempo</span>
+                </button>
+                <div class="rewind-charges" id="rewindPipsContainer">
+                    <div class="charge-pip active"></div>
+                    <div class="charge-pip active"></div>
+                    <div class="charge-pip active"></div>
+                </div>
+            </div>
+
+            <!-- Quickslots / Inventory -->
+            <div class="hud-card">
+                <div class="hud-card-title">
+                    <span>Consumibles Rápidos</span>
+                    <span style="font-size: 0.7rem; color: var(--text-muted);">[1, 2, 3]</span>
+                </div>
+                <div class="quickslots-grid" id="quickslotsContainer">
+                    <div class="quickslot-item empty"><span class="quickslot-key">1</span><span class="quickslot-name">-</span></div>
+                    <div class="quickslot-item empty"><span class="quickslot-key">2</span><span class="quickslot-name">-</span></div>
+                    <div class="quickslot-item empty"><span class="quickslot-key">3</span><span class="quickslot-name">-</span></div>
+                </div>
+            </div>
+
+            <!-- Active Artifacts -->
+            <div class="hud-card">
+                <div class="hud-card-title">
+                    <span>Artefactos Pasivos</span>
+                </div>
+                <div class="artifacts-list" id="artifactsContainer">
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">Sin artefactos encontrados aún.</span>
+                </div>
+            </div>
+
+            <!-- Event / Combat Console -->
+            <div class="hud-card">
+                <div class="hud-card-title">
+                    <span>Registro Cuántico</span>
+                </div>
+                <div class="event-log-container" id="eventLogList">
+                    <div class="log-entry chrono">Iniciando descenso en Chronos Abyss...</div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Semantic Footer -->
+    <footer class="game-footer">
+        <div>Chronos Abyss &copy; 2026 Codex Portfolio &bull; Roguelike Engine ES6+</div>
+        <div class="footer-keys">
+            <span class="key-hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>Flechas</kbd> Moverse & Atacar</span>
+            <span class="key-hint"><kbd>Espacio</kbd> Esperar</span>
+            <span class="key-hint"><kbd>R</kbd> Rebobinar</span>
+            <span class="key-hint"><kbd>1</kbd>-<kbd>3</kbd> Usar Ítem</span>
+        </div>
+    </footer>
+
+    <!-- Modal: Help / Instructions -->
+    <div class="modal-overlay" id="helpModal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+        <div class="modal-card">
+            <h2 class="modal-title" id="helpTitle">Manual del Crononavegante</h2>
+            <div class="modal-body">
+                <p>Bienvenido al <strong>Chronos Abyss</strong>, un vórtice de entropía donde el tiempo está fracturado.</p>
+                <ul>
+                    <li><strong>Moverse y Atacar:</strong> Usa <kbd>W A S D</kbd> o las <kbd>Flechas</kbd>. Para atacar a un enemigo, simplemente muévete hacia su casilla.</li>
+                    <li><strong>Rebobinado Temporal (R):</strong> Si cometes un error táctico o sufres daño letal, pulsa <kbd>R</kbd> para deshacer turnos anteriores a cambio de Energía Crono.</li>
+                    <li><strong>Fisuras y Altares:</strong> Pisa las fisuras temporales azules para absorber energía. Reza en los altares dorados para obtener bendiciones.</li>
+                    <li><strong>Escaleras (▼):</strong> Encuentra el portal de descenso para avanzar al siguiente estrato abisal.</li>
+                </ul>
+            </div>
+            <button class="btn-primary" id="btnCloseHelp">Entendido, Entrar al Abismo</button>
+        </div>
+    </div>
+
+    <!-- Modal: Game Over -->
+    <div class="modal-overlay" id="gameOverModal" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
+        <div class="modal-card">
+            <h2 class="modal-title" id="gameOverTitle" style="color: var(--danger-red);">Paradoja Temporal (Fin de Partida)</h2>
+            <p style="color: var(--text-muted);">Tu línea temporal ha colapsado en el vacío abisal.</p>
+            <div class="modal-stats-grid">
+                <div class="modal-stat-box">
+                    <div class="box-val" id="endDepth">1</div>
+                    <div class="box-lbl">Profundidad Máxima</div>
+                </div>
+                <div class="modal-stat-box">
+                    <div class="box-val" id="endTurns">0</div>
+                    <div class="box-lbl">Turnos Sobrevividos</div>
+                </div>
+                <div class="modal-stat-box">
+                    <div class="box-val" id="endScore">0</div>
+                    <div class="box-lbl">Puntuación Final</div>
+                </div>
+                <div class="modal-stat-box">
+                    <div class="box-val" id="endRewinds">0</div>
+                    <div class="box-lbl">Rebobinados Ejecutados</div>
+                </div>
+            </div>
+            <button class="btn-primary" id="btnRestartAfterDeath">Reiniciar Nueva Línea Temporal</button>
+        </div>
+    </div>
+
+    <!-- Game Scripts -->
+    <script src="js/audio.js"></script>
+    <script src="js/items.js"></script>
+    <script src="js/enemies.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
